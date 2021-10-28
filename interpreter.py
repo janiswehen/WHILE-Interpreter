@@ -7,7 +7,7 @@ class Interpreter:
         self.variabels = []
         self.rep = 0
         self.wn = True
-        self.errNo = 0
+        self.mods = []
     
     def run(self):
         #print("Running Program:\n" + self.program + "\n")
@@ -15,6 +15,7 @@ class Interpreter:
         self.cleanProg()
         self.initVars()
         self.wn = not len(self.program) == 0
+        #print(self.program)
 
         self.runComand()
 
@@ -23,6 +24,8 @@ class Interpreter:
     
     def runComand(self):
         if self.wn:
+            #print(self.variabels)
+            start = self.pc
             self.checkRegs()
             self.wn = False
             if not self.haveNextComand():
@@ -38,6 +41,7 @@ class Interpreter:
                 self.SError("Can't find command:'" + self.program[self.pc:self.pc+10] + "'")
                 return
             self.checkRegs()
+            #print(self.program[start:self.pc])
             self.runComand()
 
 
@@ -56,67 +60,69 @@ class Interpreter:
         if not self.testString(":="):
             self.SError("Expected ':='")
             return
+        
+        if (self.program[self.pc] + self.program[self.pc + 1]) == "x_" or self.getCharAtPC().isdigit():
+            e, num1 = self.getVar()
+            if e == 1:
+                return
 
-        if self.getCharAtPC().isdigit() or self.getCharAtPC() == "-":                       #set const
-            sign = 1
+            s = self.getCharAtPC()
             if self.getCharAtPC() == "-":
-                sign = -1
                 self.pc += 1
-            num = self.getNumAndInc()
-
-            if num == -1:
-                self.SError("Expected Number")
-                return
-            
-            self.variabels[var1] = sign * num
-        elif self.getCharAtPC() == "x":                                                     #move
-            if not self.testString("x_"):
-                self.SError("Expected 'x_'")
-                return
-            var2 = self.getNumAndInc()
-            if var1 == -1:
-                self.SError("Expected Number after Variabel!")
-                return
-            if self.getCharAtPC() == "+":                                                       #and add
+                e, num2 = self.getVar()
+                if e == 1:
+                    return
+                self.variabels[var1] = num1 - num2
+            elif self.getCharAtPC() == "+":
                 self.pc += 1
-
-                if self.getCharAtPC() == "x":
-                    if not self.testString("x_"):
-                        self.SError("Expected 'x_'")
-                        return
-                    var3 = self.getNumAndInc()
-                    if var3 == -1:
-                        self.SError("Expected Number after Variabel!")
-                        return
-                    self.variabels[var1] = self.variabels[var2] + self.variabels[var3]
-                else:
-                    num = self.getNumAndInc()
-                    if num == -1:
-                        self.SError("Can't read number!")
-                        return
-                    self.variabels[var1] = self.variabels[var2] + num
-            elif self.getCharAtPC() == "-":                                                       #and add
-                self.pc += 1
-                if self.getCharAtPC() == "x":
-                    if not self.testString("x_"):
-                        self.SError("Expected 'x_'")
-                        return
-                    var3 = self.getNumAndInc()
-                    if var3 == -1:
-                        self.SError("Expected Number after Variabel!")
-                        return
-                    self.variabels[var1] = self.variabels[var2] - self.variabels[var3]
-                else:
-                    num = self.getNumAndInc()
-                    if num == -1:
-                        self.SError("Can't read number!")
-                        return
-                    self.variabels[var1] = self.variabels[var2] - num
-            else:                                                                               #simply move
-                self.variabels[var1] = self.variabels[var2]
+                e, num2 = self.getVar()
+                if e == 1:
+                    return
+                self.variabels[var1]= num1 + num2
+            else:
+                self.variabels[var1] = num1
         else:
-            self.SError("Can't read Set")
-            return
+            err = True
+            for s in self.mods:
+                if self.testStringGoBack(s):
+                    err = False
+                    self.testString(s)
+                    if not self.testString("("):
+                        self.SError("Expected '('")
+                        return
+                    input = []
+                    while self.getCharAtPC() != ")":
+                        e, num = self.getVar()
+                        if e == 1:
+                            self.SError("Expected Var")
+                            return
+                        input.append(num)
+                        if not self.getCharAtPC() == ",":
+                            break
+                        self.pc += 1
+                    if not self.testString(")"):
+                        self.SError("Expected ')'")
+                        return
+                    
+                    fileName = s + ".WHILE"
+                    fileObj = open(fileName, "r")
+                    prog = fileObj.read()
+                    fileObj.close()
+
+                    inter = Interpreter()
+                    inter.setProg(prog)
+                    inter.setInput(input)
+                    newmods = []
+                    for mod in self.mods:
+                        if not mod == s:
+                            newmods.append(mod)
+                    inter.setMods(newmods)
+                    res = inter.run()
+                    self.variabels[var1] = res
+                    break
+            if err:
+                self.SError("No module found!")
+                return
         
         if self.getCharAtPC() == ";":
             self.wn = True
@@ -141,18 +147,11 @@ class Interpreter:
             self.SError("Expected '!='")
             return
 
-        sign = 1
-        if self.getCharAtPC() == "-":
-            sign = -1
-            self.pc += 1
+        e, numtest = self.getVar()
 
-        numtest = self.getNumAndInc()
-
-        if numtest == -1:
+        if e == 1:
             self.SError("Expected Number after Variabel!")
             return
-        
-        numtest *= sign
 
         if not self.testString("DO"):
             self.SError("Expected 'DO'")
@@ -160,7 +159,7 @@ class Interpreter:
         
         pc = self.pc
         wCount = 0
-        wmax = 100
+        wmax = 100000
         if self.variabels[vartest] == numtest:
             v = []
             for i in self.variabels:
@@ -220,6 +219,29 @@ class Interpreter:
     def SError(self, str):
         print("Sytax Error: " + str)
 
+    def getVar(self):
+        if self.getCharAtPC().isdigit():
+            num = self.getNumAndInc()
+            return 0, num
+        elif self.getCharAtPC() == "-":
+            self.pc += 1
+            num = self.getCharAtPCAndInc()
+            if num == -1:
+                self.SError("Missing Number")
+                return 1, 0
+            return 0, -num
+        elif self.getCharAtPC() == "x":
+            if not self.testString("x_"):
+                self.SError("Expected 'x_'")
+                return 1, 0
+            var = self.getNumAndInc()
+            if var == -1:
+                self.SError("Expected Num after Var")
+                return 1,0
+            return 0, self.variabels[var]
+        else:
+            self.SError("Cound not find Number")
+            return 1,0
 
     #getChar functions
     def getCharAtPC(self):
@@ -241,12 +263,18 @@ class Interpreter:
     def testString(self, str):
         return self.getNextChars(len(str)) == str
 
+    def testStringGoBack(self, str):
+        b = self.getNextChars(len(str)) == str
+        self.pc -= len(str)
+        return b
 
-#prep functions
+
+    #prep functions
     def cleanProg(self):
         self.program = self.program.replace(" ", "")
         self.program = self.program.replace("\n", "")
         self.program = self.program.replace("\t", "")
+        self.program += " "
     
     def setVCount(self):
         m = 0
@@ -269,9 +297,12 @@ class Interpreter:
                 self.variabels[i] = 0
 
 
-#set funktions
+    #set funktions
     def setInput(self, args):
         self.args = args
 
     def setProg(self, progCode):
         self.program = progCode
+    
+    def setMods(self, mods):
+        self.mods = mods
