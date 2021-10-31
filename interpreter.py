@@ -8,18 +8,30 @@ class Interpreter:
         self.rep = 0
         self.wn = True
         self.mods = []
+        self.maxWhile = 100000
     
     def run(self):
-        #print("Running Program:\n" + self.program + "\n")
         self.pc = 0
         self.cleanProg()
         self.initVars()
         self.wn = not len(self.program) == 0
-        #print(self.program)
 
         self.runComand()
 
-        #print(self.variabels)
+        return self.variabels[0]
+
+    def runMain(self):
+        print("Mods Installed:\n" + str(self.mods) + "\n")
+        print("Running Program:\n" + self.program + "\n")
+        print("In: " + str(self.args))
+        self.pc = 0
+        self.cleanProg()
+        self.initVars()
+        self.wn = not len(self.program) == 0
+
+        self.runComand()
+
+        print("Out: " + str(self.variabels))
         return self.variabels[0]
     
     def runComand(self):
@@ -104,7 +116,7 @@ class Interpreter:
                         self.SError("Expected ')'")
                         return
                     
-                    fileName = s + ".WHILE"
+                    fileName = "mods/" + s + ".WHILE"
                     fileObj = open(fileName, "r")
                     prog = fileObj.read()
                     fileObj.close()
@@ -159,7 +171,6 @@ class Interpreter:
         
         pc = self.pc
         wCount = 0
-        wmax = 100000
         if self.variabels[vartest] == numtest:
             v = []
             for i in self.variabels:
@@ -170,8 +181,8 @@ class Interpreter:
                 self.variabels[i] = v[i]
         while self.variabels[vartest] != numtest:
             self.pc = pc
-            if wCount > wmax:
-                self.SError("WHILE-loop exided more then " + str(wmax) + " repetitions!")
+            if wCount > self.maxWhile:
+                self.SError("WHILE-loop exided more then " + str(self.maxWhile) + " repetitions!")
                 return
             self.wn = True
             self.runComand()
